@@ -91,18 +91,202 @@
 
         <!-- Four -->
 		<section id="four">
-		    <h2>Our Code</h2>
+		    <h2>Decision Tree</h2>
 			<section>
-			    <h5>Preformatted</h5>
-				<pre><code>i = 0;
-                    
-while (!deck.isInOrder()) {
-    print 'Iteration ' + i;
-    deck.shuffle();
-    i++;
-}
-print 'It took ' + i + ' iterations to sort the deck.';</code></pre>
-		</section>
+			    <h5>This was my part of the project and the code can be seen below:</h5>
+				<pre><code># -*- coding: utf-8 -*-
+"""
+@author: Daniel Ruiz
+"""
+import MTDecisionTreeP3 as dt
+import numpy as np
+
+# start the main
+def main():
+    
+    namesData = np.genfromtxt('DTNames.csv', delimiter=',', dtype = 'str')
+    rawTrain = np.genfromtxt('DT85Train.csv', delimiter=',', dtype = 'str')
+    myTest = np.genfromtxt('DT15Test.csv', delimiter=',', dtype = 'str')
+    
+    root = dt.DecTreeNode()
+    # optional - initialize default class to use in case of tie or no examples
+    
+    # divide the training data into the data and the class
+    myTrainClass = rawTrain[:,np.shape(rawTrain)[1]-1]
+    myTrain = rawTrain[:,:np.shape(rawTrain)[1]-1]
+    
+    # divide the testing data into the data and the class
+    myTestClass = myTest[:,np.shape(myTest)[1]-1]
+    myTestData = myTest[:,:np.shape(myTest)[1]-1]
+    
+    nameRows = np.shape(namesData)[0]
+    testRows = np.shape(myTest)[0]
+    
+    # Can hard code best if tie (out) or use value from myNames[numberColumns-1,3]
+    bestValue = dt.findBest(myTrainClass, namesData[nameRows-1,3:], namesData[nameRows-1,3])
+    # bestValue = dt.findBest(myTrainClass, namesData[nameRows-1,3:], "out")
+
+    #  Choose one depending on what you did above
+    root.create(myTrain, myTrainClass, namesData, bestValue)
+    # root.create(myTrain, myTrainClass, namesData, "home run")
+    
+    # uncomment to print tree
+    # root.print(0)
+    
+    correctness = 0
+
+    for i in range(testRows):
+        
+        treeClass = root.classify(myTestData[i,:])
+        # uncomment to show results for each line
+        # print(i, treeClass)
+        
+        if myTestClass[i] == treeClass:
+            correctness = correctness + 1
+        
+    print("Correctness: ", round((correctness/testRows)*100, 4))
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+            <pre><code>Output:
+Correctness: 62.5</code></pre>
+
+            <h5>Here is MTDecisionTreeP3:</h5>
+            <pre><code># -*- coding: utf-8 -*-
+"""
+@author: Professor Michael Thompson
+"""
+import numpy as np
+import math
+
+def findBest(classes, classNames, best):
+    numVals = len(classNames)
+    count = np.zeros(numVals)
+    for i in range(numVals):
+        count[i] = np.shape(np.where(classes == classNames[i]))[1]
+        
+    bestIndex = 0
+    for i in range(1, numVals):
+        if count[i] == count[bestIndex] and classNames[i] == best:
+            bestIndex = i
+        elif count[i] > count[bestIndex]:
+            bestIndex = i
+            
+    return classNames[bestIndex]
+
+def entropy(data, classNames):  
+    mySum = 0
+    total = np.shape(data)[0]
+    for cVal in classNames:
+        ind = np.where(data == cVal)
+        num = np.shape(ind)[1]
+        if num > 0:
+            mySum -= (num/total)*math.log2(num/total)
+    return mySum
+    
+    
+
+def gain(data, classes, names, index):
+    numAttr = np.shape(names)[0]-1
+    gVal = 0
+    cls = names[numAttr, 3:]
+    ent = entropy(classes, cls)
+    total = np.shape(data)[0]
+    for i in range(int(names[index,2])):
+        ind = np.where(data[:,index] == names[index, i+3])
+        num = np.shape(ind)[1]
+        if num > 0:
+            redClasses = classes[ind]
+            gVal += (num/total)*entropy(redClasses, cls)
+        
+    
+    return ent - gVal
+
+
+class DecTreeNode:
+    def __init__(self):
+        self._children = []
+        self._parent = ""
+        self._attribute = -1
+        self._attrName = ""
+        self._value = ""
+        self._class = ""
+        
+    def getValue(self):
+        return self._value
+    
+    def setValue(self, v):
+        self._value = v
+        
+    def classify(self, example):
+        if self._class != "":
+            return self._class
+        else:
+            for child in self._children:
+                if example[self._attribute] == child.getValue():
+                    example = np.delete(example, self._attribute, axis=0)
+                    return child.classify(example)
+                
+        print("OOPS!!", example)
+        
+    def print(self, offset):
+        if self._class != "":
+            print(" "*offset, self._class)
+    # changed from else to elif; canalso increase number to show more of tree
+        elif offset < 15:
+            print(" "*offset, self._attrName.upper()+"?")
+            for child in self._children:
+                print(" "*(offset+3), "="+child.getValue())
+                child.print(offset+6)
+                
+    def create(self, data, classes, names, best):
+
+        numAttr = np.shape(names)[0]-1
+       
+        vals = np.unique(classes)
+        if len(vals) == 0:
+            self._class = best
+            return
+        elif len(vals) == 1:
+            self._class = vals[0]
+            return
+        # stops this many values from the bottom
+        # uses the best two attributes when == 4
+        elif numAttr==4:
+            self._class = findBest(classes, names[numAttr,3:], best)
+            return
+        else:
+        
+            # Find attribute with best gain
+            bestGain = gain(data, classes, names, 0)
+            bestAttr = 0
+            for i in range(1, numAttr):
+                thisGain = gain(data, classes, names, 1)
+                if thisGain > bestGain:
+                    bestGain = thisGain
+                    bestAttr = i
+            
+            self._attribute = bestAttr
+            self._attrName = names[bestAttr,0]
+            
+            # create child for each value
+            for i in range(int(names[bestAttr, 2])):
+                x = DecTreeNode()
+                newInd = np.where(data[:,bestAttr] == names[bestAttr, 3+i])
+                newData = data[newInd,:][0]
+                newClasses = classes[newInd]
+                newData = np.delete(newData, bestAttr, axis=1)
+                newNames = np.delete(names, bestAttr, axis=0)
+                newBest = findBest(newClasses, newNames[numAttr-1,3:], best)
+                               
+                x.create(newData, newClasses, newNames, newBest)
+                x.setValue(names[bestAttr, 3+i])
+                
+                
+                self._children.append(x)</code></pre>
+
+	    </section>
 
     </div>
 
